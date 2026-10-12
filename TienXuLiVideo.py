@@ -18,8 +18,44 @@ class VideoRotationApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Video Rotation")
-        self.root.geometry("1000x650")
-        self.root.minsize(640, 400)
+        self.root.geometry("1200x760")
+        self.root.minsize(900, 560)
+        self.colors = {
+            "window": "#F3F5F8",
+            "sidebar": "#FFFFFF",
+            "display": "#111827",
+            "text": "#172033",
+            "muted": "#687386",
+            "accent": "#2563EB",
+            "accent_hover": "#1D4ED8",
+            "secondary": "#E9EEF5",
+            "secondary_hover": "#DCE4EF",
+            "border": "#E2E8F0",
+        }
+        self.root.configure(bg=self.colors["window"])
+
+        style = ttk.Style(self.root)
+        style.theme_use("clam")
+        style.configure(
+            "TNotebook",
+            background=self.colors["window"],
+            borderwidth=0,
+            tabmargins=(8, 8, 0, 0),
+        )
+        style.configure("TFrame", background=self.colors["window"])
+        style.configure(
+            "TNotebook.Tab",
+            background=self.colors["secondary"],
+            foreground=self.colors["muted"],
+            borderwidth=0,
+            padding=(18, 10),
+            font=("Segoe UI", 10, "bold"),
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", self.colors["sidebar"])],
+            foreground=[("selected", self.colors["accent"])],
+        )
 
         self.capture = None
         self.rotation = 0
@@ -63,144 +99,277 @@ class VideoRotationApp:
                 if not detector.empty():
                     self.face_detector = detector
 
-        toolbar = tk.Frame(self.video_tab, padx=8, pady=8)
-        toolbar.pack(side=tk.TOP, fill=tk.X, anchor=tk.NW)
+        def create_page(tab, title, description):
+            tab.grid_columnconfigure(0, weight=0, minsize=210)
+            tab.grid_columnconfigure(1, weight=1)
+            tab.grid_rowconfigure(0, weight=1)
 
-        tk.Button(toolbar, text="Open Video File", command=self.open_video).pack(
-            side=tk.LEFT, padx=(0, 6)
-        )
-        tk.Button(toolbar, text="Open Webcam", command=self.open_webcam).pack(
-            side=tk.LEFT, padx=(0, 6)
-        )
-        tk.Button(toolbar, text="Stop Video", command=self.stop_video).pack(
-            side=tk.LEFT, padx=(0, 12)
-        )
-        self.status = tk.StringVar(value="Select a video file or open the webcam.")
-        tk.Label(toolbar, textvariable=self.status, anchor=tk.W).pack(
-            side=tk.LEFT, fill=tk.X, expand=True
-        )
+            sidebar = tk.Frame(
+                tab,
+                bg=self.colors["sidebar"],
+                width=210,
+                padx=18,
+                pady=20,
+                highlightthickness=1,
+                highlightbackground=self.colors["border"],
+            )
+            sidebar.grid(row=0, column=0, sticky="nsew")
+            sidebar.grid_propagate(False)
+            tk.Label(
+                sidebar,
+                text=title,
+                bg=self.colors["sidebar"],
+                fg=self.colors["text"],
+                font=("Segoe UI", 15, "bold"),
+                anchor=tk.W,
+                wraplength=172,
+                justify=tk.LEFT,
+            ).pack(fill=tk.X, pady=(0, 6))
+            tk.Label(
+                sidebar,
+                text=description,
+                bg=self.colors["sidebar"],
+                fg=self.colors["muted"],
+                font=("Segoe UI", 9),
+                anchor=tk.W,
+                justify=tk.LEFT,
+                wraplength=172,
+            ).pack(fill=tk.X, pady=(0, 20))
 
-        self.video_view = tk.Label(
+            display = tk.Frame(tab, bg=self.colors["window"], padx=12, pady=12)
+            display.grid(row=0, column=1, sticky="nsew")
+            return sidebar, display
+
+        def add_button(parent, text, command, primary=False):
+            background = (
+                self.colors["accent"] if primary else self.colors["secondary"]
+            )
+            foreground = "#FFFFFF" if primary else self.colors["text"]
+            hover_background = (
+                self.colors["accent_hover"]
+                if primary
+                else self.colors["secondary_hover"]
+            )
+            button = tk.Button(
+                parent,
+                text=text,
+                command=command,
+                anchor=tk.W,
+                bg=background,
+                fg=foreground,
+                activebackground=hover_background,
+                activeforeground=foreground,
+                disabledforeground=self.colors["muted"],
+                relief=tk.FLAT,
+                bd=0,
+                padx=12,
+                pady=10,
+                cursor="hand2",
+                font=("Segoe UI", 9, "bold"),
+                highlightthickness=0,
+            )
+            button.pack(fill=tk.X, pady=4)
+            return button
+
+        def add_section_label(parent, text):
+            tk.Label(
+                parent,
+                text=text,
+                bg=self.colors["sidebar"],
+                fg=self.colors["muted"],
+                font=("Segoe UI", 9, "bold"),
+                anchor=tk.W,
+            ).pack(fill=tk.X, pady=(12, 5))
+
+        def create_view(parent, text):
+            view = tk.Label(
+                parent,
+                text=text,
+                bg=self.colors["display"],
+                fg="#E5E7EB",
+                font=("Segoe UI", 12),
+                justify=tk.CENTER,
+                anchor=tk.CENTER,
+            )
+            view.pack(fill=tk.BOTH, expand=True)
+            return view
+
+        video_sidebar, video_display = create_page(
             self.video_tab,
-            text=(
-                "Select a video file or open the webcam to start.\n"
-                "A: Rotate counter-clockwise | D: Rotate clockwise | Q/Esc: Stop"
-            ),
-            bg="black",
-            fg="white",
-            font=("Segoe UI", 12),
-            justify=tk.CENTER,
+            "Video Rotation",
+            "Choose a video source and rotate the image while it plays.",
         )
-        self.video_view.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
-
-        face_toolbar = tk.Frame(self.faces_tab, padx=8, pady=8)
-        face_toolbar.pack(side=tk.TOP, fill=tk.X, anchor=tk.NW)
-        tk.Button(
-            face_toolbar, text="Open Face Detection Webcam", command=self.open_face_webcam
-        ).pack(side=tk.LEFT, padx=(0, 6))
-        tk.Button(
-            face_toolbar, text="Stop Webcam", command=self.stop_face_webcam
-        ).pack(side=tk.LEFT, padx=(0, 12))
-        self.face_count = tk.StringVar(value="Faces detected: 0")
-        tk.Label(face_toolbar, textvariable=self.face_count, anchor=tk.W).pack(
-            side=tk.LEFT, padx=(0, 12)
-        )
+        add_section_label(video_sidebar, "VIDEO SOURCE")
+        add_button(video_sidebar, "Open Video File", self.open_video, primary=True)
+        add_button(video_sidebar, "Open Webcam", self.open_webcam)
+        add_button(video_sidebar, "Stop Video", self.stop_video)
+        add_section_label(video_sidebar, "KEYBOARD SHORTCUTS")
         tk.Label(
-            face_toolbar, text="Press Ctrl+S to save detected faces as PNG."
-        ).pack(side=tk.LEFT)
+            video_sidebar,
+            text="A   Rotate left 90°\nD   Rotate right 90°\nQ / Esc   Stop",
+            bg=self.colors["sidebar"],
+            fg=self.colors["muted"],
+            font=("Segoe UI", 9),
+            anchor=tk.W,
+            justify=tk.LEFT,
+        ).pack(fill=tk.X)
+        self.status = tk.StringVar(value="Select a video source.")
+        tk.Label(
+            video_sidebar,
+            textvariable=self.status,
+            bg=self.colors["sidebar"],
+            fg=self.colors["muted"],
+            font=("Segoe UI", 9),
+            wraplength=172,
+            justify=tk.LEFT,
+            anchor=tk.W,
+        ).pack(side=tk.BOTTOM, fill=tk.X, pady=(16, 0))
+        self.video_view = create_view(
+            video_display,
+            "Select a video file or open the webcam to start.",
+        )
 
-        self.face_view = tk.Label(
+        face_sidebar, face_display = create_page(
             self.faces_tab,
-            text="Open the webcam to detect faces.",
-            bg="black",
-            fg="white",
-            font=("Segoe UI", 12),
-            justify=tk.CENTER,
+            "Face Detection",
+            "Detect and save face regions from a live webcam.",
         )
-        self.face_view.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
+        add_section_label(face_sidebar, "WEBCAM")
+        add_button(
+            face_sidebar,
+            "Start Face Detection",
+            self.open_face_webcam,
+            primary=True,
+        )
+        add_button(face_sidebar, "Stop Webcam", self.stop_face_webcam)
+        add_section_label(face_sidebar, "DETECTED FACES")
+        self.face_count = tk.StringVar(value="Faces detected: 0")
+        tk.Label(
+            face_sidebar,
+            textvariable=self.face_count,
+            bg=self.colors["sidebar"],
+            fg=self.colors["accent"],
+            font=("Segoe UI", 12, "bold"),
+            anchor=tk.W,
+        ).pack(fill=tk.X, pady=(2, 8))
+        tk.Label(
+            face_sidebar,
+            text="Press Ctrl+S to save detected faces as PNG.",
+            bg=self.colors["sidebar"],
+            fg=self.colors["muted"],
+            font=("Segoe UI", 9),
+            wraplength=172,
+            justify=tk.LEFT,
+            anchor=tk.W,
+        ).pack(fill=tk.X)
+        self.face_view = create_view(
+            face_display, "Open the webcam to detect faces."
+        )
 
-        contour_toolbar = tk.Frame(self.contours_tab, padx=8, pady=8)
-        contour_toolbar.pack(side=tk.TOP, fill=tk.X, anchor=tk.NW)
-        tk.Button(
-            contour_toolbar, text="Open Image", command=self.open_contour_image
-        ).pack(side=tk.LEFT, padx=(0, 8))
-        tk.Label(contour_toolbar, text="Minimum contour area:").pack(
-            side=tk.LEFT, padx=(0, 4)
+        contour_sidebar, contour_display = create_page(
+            self.contours_tab,
+            "Object Counting",
+            "Find object contours and draw them on the source image.",
         )
+        add_section_label(contour_sidebar, "IMAGE")
+        add_button(
+            contour_sidebar, "Open Image", self.open_contour_image, primary=True
+        )
+        add_section_label(contour_sidebar, "FILTER")
+        tk.Label(
+            contour_sidebar,
+            text="Minimum contour area",
+            bg=self.colors["sidebar"],
+            fg=self.colors["muted"],
+            font=("Segoe UI", 9),
+            anchor=tk.W,
+        ).pack(fill=tk.X, pady=(0, 5))
         self.minimum_contour_area = tk.StringVar(value="100")
         tk.Spinbox(
-            contour_toolbar,
+            contour_sidebar,
             from_=0,
             to=1000000,
             increment=50,
             textvariable=self.minimum_contour_area,
-            width=8,
-        ).pack(side=tk.LEFT, padx=(0, 8))
-        tk.Button(
-            contour_toolbar, text="Detect Objects", command=self.detect_objects
-        ).pack(side=tk.LEFT, padx=(0, 12))
+            relief=tk.FLAT,
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=self.colors["border"],
+            highlightcolor=self.colors["accent"],
+            bg="#F8FAFC",
+            fg=self.colors["text"],
+            buttonbackground=self.colors["secondary"],
+            font=("Segoe UI", 10),
+            width=12,
+        ).pack(fill=tk.X, pady=(0, 8), ipady=6)
+        add_button(
+            contour_sidebar, "Detect Objects", self.detect_objects, primary=True
+        )
         self.object_count = tk.StringVar(value="Objects detected: 0")
-        tk.Label(contour_toolbar, textvariable=self.object_count, anchor=tk.W).pack(
-            side=tk.LEFT
+        tk.Label(
+            contour_sidebar,
+            textvariable=self.object_count,
+            bg=self.colors["sidebar"],
+            fg=self.colors["accent"],
+            font=("Segoe UI", 11, "bold"),
+            wraplength=172,
+            justify=tk.LEFT,
+            anchor=tk.W,
+        ).pack(fill=tk.X, pady=(16, 0))
+        self.contour_view = create_view(
+            contour_display, "Open an image to count objects using contours."
         )
-
-        self.contour_view = tk.Label(
-            self.contours_tab,
-            text="Open an image to count objects using contours.",
-            bg="black",
-            fg="white",
-            font=("Segoe UI", 12),
-            justify=tk.CENTER,
-        )
-        self.contour_view.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
         self.contour_view.bind("<Configure>", self.refresh_contour_view)
 
-        plate_toolbar = tk.Frame(self.plate_tab, padx=8, pady=8)
-        plate_toolbar.pack(side=tk.TOP, fill=tk.X, anchor=tk.NW)
-        tk.Button(
-            plate_toolbar, text="Open Plate Image", command=self.open_plate_image
-        ).pack(side=tk.LEFT, padx=(0, 6))
-        tk.Button(
-            plate_toolbar,
-            text="Set Tesseract Path",
-            command=self.select_tesseract,
-        ).pack(side=tk.LEFT, padx=(0, 6))
-        tk.Button(plate_toolbar, text="Recognize and Segment", command=self.process_plate).pack(
-            side=tk.LEFT, padx=(0, 6)
+        plate_sidebar, plate_display = create_page(
+            self.plate_tab,
+            "License Plate OCR",
+            "Recognize plate text and export individual character images.",
         )
-        tk.Button(
-            plate_toolbar, text="Save Character PNGs", command=self.save_plate_characters
-        ).pack(side=tk.LEFT, padx=(0, 12))
-        tk.Label(plate_toolbar, text="OCR result:").pack(side=tk.LEFT, padx=(0, 4))
+        add_section_label(plate_sidebar, "PLATE IMAGE")
+        add_button(
+            plate_sidebar, "Open Plate Image", self.open_plate_image, primary=True
+        )
+        add_button(plate_sidebar, "Recognize & Segment", self.process_plate)
+        add_button(
+            plate_sidebar, "Save Character PNGs", self.save_plate_characters
+        )
+        add_section_label(plate_sidebar, "OCR TEXT")
         self.plate_text = tk.StringVar()
         self.plate_text_entry = tk.Entry(
-            plate_toolbar, textvariable=self.plate_text, state="readonly", width=24
+            plate_sidebar,
+            textvariable=self.plate_text,
+            state="readonly",
+            relief=tk.FLAT,
+            bd=0,
+            readonlybackground="#F1F5F9",
+            fg=self.colors["text"],
+            font=("Segoe UI", 11, "bold"),
         )
-        self.plate_text_entry.pack(side=tk.LEFT, padx=(0, 6))
-        tk.Button(
-            plate_toolbar, text="Copy Text", command=self.copy_plate_text
-        ).pack(side=tk.LEFT)
-
+        self.plate_text_entry.pack(fill=tk.X, ipady=8, pady=(0, 4))
+        add_button(plate_sidebar, "Copy Text", self.copy_plate_text)
+        add_button(plate_sidebar, "Set Tesseract Path", self.select_tesseract)
         engine_status = (
-            f"Tesseract found: {self.tesseract_path}"
+            f"Tesseract ready: {os.path.basename(self.tesseract_path)}"
             if self.tesseract_path
-            else "Tesseract not found. Use Set Tesseract Path to locate tesseract.exe."
+            else "Tesseract not found. Set its executable path."
         )
         self.plate_status = tk.StringVar(
-            value=f"Open an image containing a license plate. {engine_status}"
+            value=f"Open a plate image. {engine_status}"
         )
         tk.Label(
-            self.plate_tab, textvariable=self.plate_status, anchor=tk.W
-        ).pack(side=tk.TOP, fill=tk.X, padx=8, pady=(0, 6))
-        self.plate_view = tk.Label(
-            self.plate_tab,
-            text="Open an image containing a license plate.",
-            bg="black",
-            fg="white",
-            font=("Segoe UI", 12),
-            justify=tk.CENTER,
+            plate_sidebar,
+            textvariable=self.plate_status,
+            bg=self.colors["sidebar"],
+            fg=self.colors["muted"],
+            font=("Segoe UI", 9),
+            wraplength=172,
+            justify=tk.LEFT,
+            anchor=tk.W,
+        ).pack(side=tk.BOTTOM, fill=tk.X, pady=(16, 0))
+        self.plate_view = create_view(
+            plate_display, "Open an image containing a license plate."
         )
-        self.plate_view.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
         self.plate_view.bind("<Configure>", self.refresh_plate_view)
 
         self.root.bind("<KeyPress>", self.on_key_press)
